@@ -1,0 +1,419 @@
+"""
+Created on Fri Mar 15 13:09:10 2019
+This creates both a time series plot and a map for each vessel
+
+
+@author: leizhao
+Modifications by JiM & Mingchao in Oct 2019 to:
+    -adding comments and  hardcodes at the top
+    -calulate mean differences in obs and model
+Dec,2019 Mingchao:
+    Add codes in the function of draw_time_series_plot in fisherman_report_map&tsp.py for calculating mean differences and RMS differences of temp and depth
+    Modify the function of plot in fisherman_report_map&tsp.py,so that we can see differences of temp and depth together in time_series_plot
+
+"""
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime,timedelta
+import zlconversions as zl
+import time
+import os
+import conda
+conda_file_dir = conda.__file__
+conda_dir = conda_file_dir.split('lib')[0]
+proj_lib = os.path.join(os.path.join(conda_dir, 'share'), 'proj')
+os.environ["PROJ_LIB"] = proj_lib
+from mpl_toolkits.basemap import Basemap
+import sys
+import pandas as pd
+import json
+import math
+#################  HARDCODES ###############
+path='/home/jmanning/leizhao/programe/aqmain/dictionary/dictionary.json'  # the path of dictionary.json, this file come from the create_modules_dictionary.py
+#path='/home/jmanning/Mingchao/parameter/each_vessels/Illusion_dictionary.json'
+picture_save='/home/jmanning/Mingchao/programe/Semi_Annual/result/' #the directory of dtore picture
+#numdays=7
+numdays=31
+vessel='all' # this should be  'all' if you want all vessels
+#vessel='Illusion'# this is for every single vessle
+##################################################################################
+def check_time(df,time_header,start_time,end_time):
+    '''keep the type of time is datetime
+    input start time and end time, return the data between start time and end time'''
+    for i in range(len(df)):
+        if type(df[time_header][i])==str:
+            df[time_header][i]=datetime.strptime(df[time_header][i],'%Y-%m-%d %H:%M:%S')
+        if start_time<=df[time_header][i]<=end_time:
+            continue
+        else:
+            df=df.drop(i)
+    df=df.dropna()
+    df.index=range(len(df))
+    return df
+
+
+def check_depth(df,mindepth):
+    '''keep the depth is out of mindepth and correct the format of depth for example:-20 '''
+    if len(df)>0:  
+        for i in df.index:
+            if abs(df['depth'][i])<abs(mindepth):
+                df=df.drop(i)
+        df.index=range(len(df))
+    else:
+        return df
+    for i in range(len(df)):
+        if df['depth'][i]>0:
+            df['depth'][i]=-1*df['depth'][i]
+    df=df.dropna()
+    df.index=range(len(df))
+    return df
+
+#def plot(df,ax1,ax2,linewidth=2,linestyle='--',color='y',alpha=0.5,label='Observed',marker='d',markerfacecolor='y',**kwargs):
+def plot(df,ax1,ax2,linewidth=2,linestyle='--',color='y',alpha=0.5,label='Clim ',marker='d',markerfacecolor='y',mean_temp=0,RMS_temp=0,mean_error=0,RMS_diff=0,**kwargs):
+    """import dataframe and ax, plot time-depth and time-temperature"""
+    try:
+        if len(df)>0:  #the length of dataframe must be bigger than 0
+            #ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label,marker=marker,markerfacecolor=markerfacecolor)
+            if label=='Observed':
+                ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+' diff'+','+'RMS'+' degC',marker=marker,markerfacecolor=markerfacecolor)
+            #ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label,marker=marker,markerfacecolor=markerfacecolor)
+                ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+' diff'+','+'RMS'+' meters',marker=marker,markerfacecolor=markerfacecolor)
+            elif label=='DOPPIO ':
+                ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_temp)+','+"{:.1f}".format(RMS_temp),marker=marker,markerfacecolor=markerfacecolor)
+                ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_error)+','+"{:.1f}".format(RMS_diff),marker=marker,markerfacecolor=markerfacecolor)
+            #elif label=='GoMOLFs ':
+            elif label=='GoMOFs ':
+                ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_temp)+','+"{:.1f}".format(RMS_temp),marker=marker,markerfacecolor=markerfacecolor)
+                ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_error)+','+"{:.1f}".format(RMS_diff),marker=marker,markerfacecolor=markerfacecolor)
+            elif label=='FVCOM ':
+                ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_temp)+','+"{:.1f}".format(RMS_temp),marker=marker,markerfacecolor=markerfacecolor)
+                ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_error)+','+"{:.1f}".format(RMS_diff),marker=marker,markerfacecolor=markerfacecolor)
+            elif label=='Clim ':
+                ax1.plot_date(df['time'],df['temp'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_temp)+','+"{:.1f}".format(RMS_temp),marker=marker,markerfacecolor=markerfacecolor)
+                ax2.plot_date(df['time'],df['depth'],linewidth=linewidth,linestyle=linestyle,color=color,alpha=alpha,label=label+"{:.1f}".format(mean_error)+','+"{:.1f}".format(RMS_diff),marker=marker,markerfacecolor=markerfacecolor)
+        max_t,min_t=np.nanmax(df['temp'].values),np.nanmin(df['temp'].values)
+        max_d,min_d=np.nanmax(df['depth'].values),np.nanmin(df['depth'].values) 
+    except:
+        max_t,min_t,max_d,min_d=-9999,9999,-99999,99999 
+    return  max_t,min_t,max_d,min_d
+
+def draw_time_series_plot(dict,name,dtime,ltime=local_time,path_picture_save,timeinterval,dpi=300,mindepth=10):  
+    """
+    import the dictionary, this dictionary have data about Doppio,GoMOLFs,FVCOM and telemetered or this dict from create_obs_dpo_gmf_dict.py
+    the unit of time interval is days
+    use to draw time series plot """
+    #get the latest time of get data, and back 30 days as start time
+    df=pd.DataFrame.from_dict(dict[name])
+#    df[]
+    df['time']=df.index
+    tele_df=df[['time','lat','lon','observation_T', 'observation_H']]
+    tele_df.rename(columns={'observation_T':'temp','observation_H':'depth'},inplace=True)
+    Doppio_df=df[['time','lat','lon','Doppio_T', 'Doppio_H']]
+    Doppio_df.rename(columns={'Doppio_T':'temp','Doppio_H':'depth'},inplace=True)
+    GoMOLFs_df=df[['time','lat','lon','GoMOLFs_T', 'GoMOLFs_H']]
+    GoMOLFs_df.rename(columns={'GoMOLFs_T':'temp','GoMOLFs_H':'depth'},inplace=True)
+    FVCOM_df=df[['time','lat','lon','FVCOM_T', 'FVCOM_H']]
+    FVCOM_df.rename(columns={'FVCOM_T':'temp','FVCOM_H':'depth'},inplace=True)
+    Clim_df=df[['time','lat','lon','Clim_T', 'NGDC_H']]
+    Clim_df.rename(columns={'Clim_T':'temp','NGDC_H':'depth'},inplace=True)
+    
+    
+    
+    #through the parameter of mindepth to screen the data, make sure the depth is out of ten
+    tele_df=check_depth(df=tele_df,mindepth=mindepth) #this dataframe is obervasion data
+    Doppio_df=check_depth(df=Doppio_df,mindepth=mindepth)
+    GoMOLFs_df=check_depth(df=GoMOLFs_df,mindepth=mindepth)
+    FVCOM_df=check_depth(df=FVCOM_df,mindepth=mindepth)
+    Clim_df=check_depth(df=Clim_df,mindepth=mindepth)
+
+	# JiM and Mingchao added the next four lines in Oct 2019 to calculate mean differences
+    #mean_error_Doppio=np.mean(Doppio_df['temp']-tele_df['temp'][0:len(Doppio_df['temp'])])    
+    #mean_error_GoMOLF=np.mean(GoMOLFs_df['temp']-tele_df['temp'][0:len(GoMOLFs_df['temp'])])
+    #mean_error_FVCOM=np.mean(FVCOM_df['temp']-tele_df['temp'][0:len(FVCOM_df['temp'])])
+    #mean_error_Clim=np.mean(Clim_df['temp']-tele_df['temp'][0:len(Clim_df['temp'])])
+    #calculate RMS differences
+    #RMS_Doppio=get_rms(Doppio_df['temp']-tele_df['temp'][0:len(Doppio_df['temp'])])
+    #RMS_GoMOLF=get_rms(GoMOLFs_df['temp']-tele_df['temp'][0:len(GoMOLFs_df['temp'])])
+    #RMS_FVCOM=get_rms(FVCOM_df['temp']-tele_df['temp'][0:len(FVCOM_df['temp'])])
+    #RMS_Clim=get_rms(Clim_df['temp']-tele_df['temp'][0:len(Clim_df['temp'])])
+    
+
+    #make sure the range of time through the interval and the last time
+    if len(tele_df)==0:  
+        print(name+': no valuable data')
+        return 0
+    endtime=tele_df['time'][len(tele_df)-1]
+    if type(endtime)==str:
+        endtime=datetime.strptime(endtime,'%Y-%m-%d %H:%M:%S')
+    if dtime>endtime:
+        start_time=endtime-timedelta(days=timeinterval)
+    else:
+        start_time=dtime-timedelta(days=timeinterval)
+    #through the start time and end time screen data
+    tele_dft=check_time(df=tele_df,time_header='time',start_time=start_time,end_time=dtime)
+    Doppio_dft=check_time(df=Doppio_df,time_header='time',start_time=start_time,end_time=dtime)
+    GoMOLFs_dft=check_time(df=GoMOLFs_df,time_header='time',start_time=start_time,end_time=dtime)
+    FVCOM_dft=check_time(df=FVCOM_df,time_header='time',start_time=start_time,end_time=dtime)
+    Clim_dft=check_time(df=Clim_df,time_header='time',start_time=start_time,end_time=dtime)
+    #match the times of observed and models,get difference value of observed  and models
+    Doppio_list=[]
+    GoMOLFs_list=[]
+    FVCOM_list=[]
+    Clim_list=[]
+    Doppio_temp=[]
+    GoMOLFs_temp=[]
+    FVCOM_temp=[]
+    Clim_temp=[]
+    for i in tele_dft.index:
+        for j in Doppio_dft.index:
+            if tele_dft['time'][i]==Doppio_dft['time'][j]:
+                Doppio_list.append(float(Doppio_dft['depth'][j]-tele_dft['depth'][i]))
+                Doppio_temp.append(float(Doppio_dft['temp'][j]-tele_dft['temp'][i]))
+        for k in GoMOLFs_dft.index:
+            if tele_dft['time'][i]==GoMOLFs_dft['time'][k]:
+                GoMOLFs_list.append(float(GoMOLFs_dft['depth'][k]-tele_dft['depth'][i]))
+                GoMOLFs_temp.append(float(GoMOLFs_dft['temp'][k]-tele_dft['temp'][i]))
+        for l in FVCOM_dft.index:
+            if tele_dft['time'][i]==FVCOM_dft['time'][l]:
+                FVCOM_list.append(float(FVCOM_dft['depth'][l]-tele_dft['depth'][i]))
+                FVCOM_temp.append(float(FVCOM_dft['temp'][l]-tele_dft['temp'][i]))
+        for m in Clim_dft.index:
+            if tele_dft['time'][i]==Clim_dft['time'][m]:
+                Clim_list.append(float(Clim_dft['depth'][m]-tele_dft['depth'][i]))
+                Clim_temp.append(float(Clim_dft['temp'][m]-tele_dft['temp'][i]))
+    mean_error_Doppio=np.mean(Doppio_list)#average diff of depth    
+    mean_error_GoMOLF=np.mean(GoMOLFs_list)
+    mean_error_FVCOM=np.mean(FVCOM_list)
+    mean_error_Clim=np.mean(Clim_list)
+    mean_temp_Doppio=np.mean(Doppio_temp)#average diff of temp 
+    mean_temp_GoMOLF=np.mean(GoMOLFs_temp)
+    mean_temp_FVCOM=np.mean(FVCOM_temp)
+    mean_temp_Clim=np.mean(Clim_temp)
+    #calculate RMS differences
+    RMS_Doppio=get_rms(Doppio_list)#RMS of depth
+    RMS_GoMOLF=get_rms(GoMOLFs_list)
+    RMS_FVCOM=get_rms(FVCOM_list)
+    RMS_Clim=get_rms(Clim_list)
+    RMS_Doppio_temp=get_rms(Doppio_temp)#RMS of temp
+    RMS_GoMOLF_temp=get_rms(GoMOLFs_temp)
+    RMS_FVCOM_temp=get_rms(FVCOM_temp)
+    RMS_Clim_temp=get_rms(Clim_temp)
+    #if boservation dataframe is no data,it will print the message that there is no data  and return zero.
+    if len(tele_dft)==0:  
+        print(name+': no valuable data')
+        return 0
+    #start to draw the picture.
+    fig=plt.figure(figsize=(11.69,8.27))
+    size=min(fig.get_size_inches())        
+    fig.suptitle(name,fontsize=3*size, fontweight='bold')
+    ax1=fig.add_axes([0.12, 0.52, 0.76,0.36])
+    ax2=fig.add_axes([0.12, 0.12, 0.76,0.36])
+    
+    #parameter initialization
+    Dmax_t,Dmin_t,Dmax_d,Dmin_d=-9999,9999,-99999,99999 
+    Gmax_t,Gmin_t,Gmax_d,Gmin_d=-9999,9999,-99999,99999 
+    Fmax_t,Fmin_t,Fmax_d,Fmin_d=-9999,9999,-99999,99999 
+    
+    #draw Graph for every module and get the minimum and maxmum of depth and temperature
+    Tmax_t,Tmin_t,Tmax_d,Tmin_d=plot(df=tele_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='-.',color='blue',alpha=0.5,label='Observed',marker='o',markerfacecolor='blue')
+    #Dmax_t,Dmin_t,Dmax_d,Dmin_d=plot(df=Doppio_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='green',alpha=0.5,label='DOPPIO '+"{0:.2g}".format(mean_error_Doppio)+','+"{0:.2g}".format(RMS_Doppio),marker='^',markerfacecolor='green')
+    Dmax_t,Dmin_t,Dmax_d,Dmin_d=plot(df=Doppio_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='green',alpha=0.5,label='DOPPIO ',marker='^',markerfacecolor='green',mean_temp=mean_temp_Doppio,RMS_temp=RMS_Doppio_temp,mean_error=mean_error_Doppio,RMS_diff=RMS_Doppio)
+    #Gmax_t,Gmin_t,Gmax_d,Gmin_d=plot(df=GoMOLFs_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='gray',alpha=0.5,label='GoMOLFs '+"{0:.2g}".format(mean_error_GoMOLF)+','+"{0:.2g}".format(RMS_GoMOLF),marker='^',markerfacecolor='gray')
+    #Gmax_t,Gmin_t,Gmax_d,Gmin_d=plot(df=GoMOLFs_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='gray',alpha=0.5,label='GoMOLFs ',marker='^',markerfacecolor='gray',mean_temp=mean_temp_GoMOLF,RMS_temp=RMS_GoMOLF_temp,mean_error=mean_error_GoMOLF,RMS_diff=RMS_GoMOLF)
+    Gmax_t,Gmin_t,Gmax_d,Gmin_d=plot(df=GoMOLFs_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='gray',alpha=0.5,label='GoMOFs ',marker='^',markerfacecolor='gray',mean_temp=mean_temp_GoMOLF,RMS_temp=RMS_GoMOLF_temp,mean_error=mean_error_GoMOLF,RMS_diff=RMS_GoMOLF)
+    #Fmax_t,Fmin_t,Fmax_d,Fmin_d=plot(df=FVCOM_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='black',alpha=0.5,label='FVCOM '+"{0:.2g}".format(mean_error_FVCOM)+','+"{0:.2g}".format(RMS_FVCOM),marker='^',markerfacecolor='black')
+    Fmax_t,Fmin_t,Fmax_d,Fmin_d=plot(df=FVCOM_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='--',color='black',alpha=0.5,label='FVCOM ',marker='^',markerfacecolor='black',mean_temp=mean_temp_FVCOM,RMS_temp=RMS_FVCOM_temp,mean_error=mean_error_FVCOM,RMS_diff=RMS_FVCOM)
+    #Cmax_t,Cmin_t,Cmax_d,Cmin_d=plot(df=Clim_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='-',color='r',alpha=0.5,label='Clim '+"{0:.2g}".format(mean_error_Clim)+','+"{0:.2g}".format(RMS_Clim),marker='d',markerfacecolor='r')
+    Cmax_t,Cmin_t,Cmax_d,Cmin_d=plot(df=Clim_dft,ax1=ax1,ax2=ax2,linewidth=2,linestyle='-',color='r',alpha=0.5,label='Clim ',marker='d',markerfacecolor='r',mean_temp=mean_temp_Clim,RMS_temp=RMS_Clim_temp,mean_error=mean_error_Clim,RMS_diff=RMS_Clim)
+   
+    #calculate the max and min of temperature and depth
+    MAX_T=max(Tmax_t,Dmax_t,Gmax_t,Fmax_t,Cmax_t)
+    #MAX_T=max(Gmax_t,Tmax_t,Dmax_t,Fmax_t)
+    MIN_T=min(Tmax_t,Dmax_t,Gmax_t,Fmax_t,Cmax_t)
+    #MIN_T=min(Gmin_t,Tmax_t,Dmax_t,Fmax_t)
+    MAX_D=max(Tmax_d,Dmax_d,Gmax_d,Fmax_d,Cmax_d)
+    #MAX_D=max(Gmax_d,Tmax_d,Dmax_t,Fmax_t)
+    MIN_D=min(Tmin_d,Dmin_d,Gmin_d,Fmin_d,Cmin_d)
+    #MIN_D=min(Gmin_d,Tmin_d,Dmax_t,Fmax_t)
+    
+    #calculate the limit value of depth and temperature 
+    diff_temp=MAX_T-MIN_T
+    diff_depth=MAX_D-MIN_D
+    if diff_temp==0:
+        textend_lim=0.1
+    else:
+        textend_lim=diff_temp/8.0
+    if diff_depth==0:
+        dextend_lim=0.1
+    else:
+        dextend_lim=diff_depth/8.0
+    #the parts of label
+    ax1.legend(prop={'size': 1.5*size})
+    ax1.set_ylabel('Celsius',fontsize=2*size)  
+    ax1.set_ylim(MIN_T-textend_lim,MAX_T+textend_lim)
+    if len(tele_df)==1: #if there only one data, we need change the time limit as one week 
+        ax1.set_xlim((tele_df['time'][0]-timedelta(days=3)),(tele_df['time'][0]+timedelta(days=4)))
+    ax1.axes.get_xaxis().set_visible(False)
+    ax1.tick_params(labelsize=1.5*size)
+    ax12=ax1.twinx()
+    ax12.set_ylabel('Fahrenheit',fontsize=2*size)
+    #conversing the Celius to Fahrenheit
+    ax12.set_ylim((MAX_T+textend_lim)*1.8+32,(MIN_T-textend_lim)*1.8+32)
+    ax12.invert_yaxis()
+    ax12.tick_params(labelsize=1.5*size)
+    ax2.legend(prop={'size':1.5* size})
+    ax2.set_ylabel('depth(m)',fontsize=2*size)
+    ax2.set_ylim(MIN_D-dextend_lim,MAX_D+dextend_lim)
+    if len(tele_df)==1:   #if there only one data, we need change the time limit as one week
+        ax2.set_xlim(tele_df['time'][0]-timedelta(days=3),tele_df['time'][0]+timedelta(days=4))
+    ax2.tick_params(labelsize=1.5*size)
+    ax22=ax2.twinx()
+    ax22.set_ylabel('depth(feet)',fontsize=2*size)
+    ax22.set_ylim((MAX_D+dextend_lim)*3.28084,(MIN_D-dextend_lim)*3.28084)
+    ax22.invert_yaxis()
+    ax22.tick_params(labelsize=1.5*size)
+    for tick in ax2.get_xticklabels():
+        tick.set_rotation(350)
+    
+    #check the path is exist,if not exist,create it
+    if not os.path.exists(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'):
+        os.makedirs(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/')
+    plt.savefig(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'+name+'_tsp_'+ltime.strftime('%Y-%m')+'obsclim.ps',dpi=dpi,orientation='landscape')
+    plt.savefig(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'+name+'_tsp_'+ltime.strftime('%Y-%m')+'obsclim.png',dpi=dpi,orientation='portait')
+    print(name+' finished time series plot!')
+
+def draw_map(df,name,dtime,ltime=local_time,path_picture_save,timeinterval,mindepth=10,dpi=300):
+    """
+    the type of start_time_local and end time_local is datetime.datetime
+    use to draw the location of raw file and telemetered produced"""
+    df=pd.DataFrame.from_dict(dict[name])
+    df['time']=df.index
+    df=df[['time','lat','lon','observation_T', 'observation_H']]
+    df.rename(columns={'observation_T':'temp','observation_H':'depth'},inplace=True)
+    #creat map
+    #Create a blank canvas 
+    df=check_depth(df.dropna(),mindepth=10) #screen out the data 
+    #make sure the start time through the latest time of get data
+    if len(df)==0:  #if the length of 
+        print(name+': valuless data!')
+        return 0
+    endtime=df['time'][len(df)-1]
+    if type(endtime)==str:
+        endtime=datetime.strptime(endtime,'%Y-%m-%d %H:%M:%S')
+    if dtime>endtime:
+        start_time=endtime-timedelta(days=timeinterval)
+    else:
+        start_time=dtime-timedelta(days=timeinterval)
+    df=check_time(df,'time',start_time,dtime) #screen out the valuable data that we need through the time
+    if len(df)==0:  #if the length of 
+        print(name+': valuless data!')
+        return 0
+    fig=plt.figure(figsize=(8,8.5))
+    fig.suptitle('F/V '+name,fontsize=24, fontweight='bold')
+ 
+    start_time=df['time'][0]
+    end_time=df['time'][len(df)-1]
+    if type(start_time)!=str:
+        start_time=start_time.strftime('%Y/%m/%d')
+        end_time=end_time.strftime('%Y/%m/%d')
+    else:
+        start_time=start_time.replace('-','/')[:10]
+        end_time=end_time.replace('-','/')[:10]
+    ax=fig.add_axes([0.03,0.03,0.85,0.85])
+    ax.set_title(start_time+' to '+end_time)
+    ax.axes.title.set_size(16)
+    
+    min_lat=min(df['lat'])
+    max_lat=max(df['lat'])
+    max_lon=max(df['lon'])
+    min_lon=min(df['lon'])
+    #keep the max_lon-min_lon>=0.2
+    if (max_lon-min_lon)<=0.4: #0.2 is a parameter that avoid the dataframe only have one value.
+        max_lon=max_lon+(0.4-(max_lon-min_lon))/2.0
+        min_lon=max_lon-0.4
+    #adjust the max and min,let map have the same width and height 
+    if (max_lon-min_lon)>(max_lat-min_lat):
+        max_lat=max_lat+((max_lon-min_lon)-(max_lat-min_lat))/2.0
+        min_lat=min_lat-((max_lon-min_lon)-(max_lat-min_lat))/2.0
+    else:
+        max_lon=max_lon+((max_lat-min_lat)-(max_lon-min_lon))/2.0
+        min_lon=min_lon-((max_lat-min_lat)-(max_lon-min_lon))/2.0
+
+    while(not zl.isConnected()):#check the internet is good or not
+        time.sleep(120)   #if no internet, sleep 2 minates try again
+    try:
+#    print(min_lat,max_lat,max_lon,min_lon)
+#    a=1
+#    if a==1:
+        service = 'Ocean_Basemap'
+        xpixels = 5000 
+        #Build a map background
+        extend=0.1*(max_lon-min_lon)
+        map=Basemap(projection='mill',llcrnrlat=min_lat-extend,urcrnrlat=max_lat+extend,llcrnrlon=min_lon-extend,urcrnrlon=max_lon+extend,\
+                resolution='f',lat_0=(max_lat+min_lat)/2.0,lon_0=(max_lon+min_lon)/2.0,epsg = 4269)
+        map.arcgisimage(service=service, xpixels = xpixels, verbose= False)
+        #set the size of step in parallels and draw meridians
+        if max_lat-min_lat>=3:
+            step=int((max_lat-min_lat)/5.0*10)/10.0
+        elif max_lat-min_lat>=1.0:
+            step=0.5
+        elif max_lat-min_lat>=0.5:
+            step=0.2
+        else :
+            step=0.1
+        
+        # draw parallels.
+        parallels = np.arange(0.,90.0,step)
+        map.drawparallels(parallels,labels=[0,1,0,0],fontsize=10,linewidth=0.0)
+        # draw meridians
+        meridians = np.arange(180.,360.,step)
+        map.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10,linewidth=0.0)
+        #Draw a scatter plot
+        tele_lat,tele_lon=to_list(df['lat'],df['lon'])
+        tele_x,tele_y=map(tele_lon,tele_lat)
+        ax.plot(tele_x,tele_y,'b*',markersize=6,alpha=0.5,label='telemetry')
+        ax.legend()
+        #if the path of the picture save is not there, creat the folder
+        if not os.path.exists(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'):
+            os.makedirs(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/')
+        #save the map
+        plt.savefig(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'+name+'_map'+'_'+ltime.strftime('%Y%m')+'.ps',dpi=dpi)
+        plt.savefig(path_picture_save+'/picture'+ltime.strftime('%Y-%m-%d')+'/'+name+'_map'+'_'+ltime.strftime('%Y%m')+'.png',dpi=dpi) #save picture
+        print(name+' finished draw!')
+    except KeyboardInterrupt:
+        sys.exit()
+    except:
+        print(name+' need redraw!')
+
+
+def to_list(lat,lon):
+    "transfer the format to list"
+    x,y=[],[]
+    for i in range(len(lat)):
+        x.append(lat[i])
+        y.append(lon[i])
+    return x,y
+
+def get_rms(records):
+    '''RMS reflects valuable datd,not average data'''
+    return math.sqrt(sum([x**2 for x in records])/len(records))
+
+#### Main code ########################
+
+end_time=datetime.utcnow()#utc time
+local_time=datetime.now()#name picture
+
+with open(path,'r') as fp:
+    dict=json.load(fp)
+    if vessel!='all':
+        draw_time_series_plot(dict,name=vessel,dtime=end_time,ltime=local_time,path_picture_save=picture_save,timeinterval=numdays,dpi=300)   # time series plot (semi-annual), about Doppio, FVCOM, GoMOFs.
+        draw_map(dict,name=vessel,dtime=end_time,ltime=local_time,path_picture_save=picture_save,timeinterval=numdays,dpi=300)  # draw map, the location of observation.
+    else:
+       for i in dict.keys(): #
+            if i=='end_time':
+                continue
+            else: 
+                draw_time_series_plot(dict,name=i,dtime=end_time,ltime=local_time,path_picture_save=picture_save,timeinterval=numdays,dpi=300)   # time series plot (semi-annual), about Doppio, FVCOM, GoMOFs.
+                draw_map(dict,name=i,dtime=end_time,ltime=local_time,path_picture_save=picture_save,timeinterval=numdays,dpi=300)  # draw map, the location of observation.
+
+
