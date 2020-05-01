@@ -122,7 +122,7 @@ def classify_by_boat(telemetry_status,start_time,end_time,dictionary,climpath,em
     emolt_no_telemetry = pd.read_csv(emolt_no_telemetry_path,index_col=0)
     #if you need using 'esn',you should set a loop for matching emolt_no_telemetry and emolt.dat
     emolt_no_telemetry['esn'] = 1
-    emolt_no_telemetry = emolt_no_telemetry.rename({'vessel':'vessel_n','datet':'time','mean_temp':'temp'})
+    emolt_no_telemetry = emolt_no_telemetry.rename(columns={'vessel':'vessel_n','datet':'time','mean_temp':'temp'})
     emolt_df = emolt_df.append(emolt_no_telemetry)
     emolt_df.index = range(len(emolt_df))
     emolt_df['time'] = pd.to_datetime(emolt_df['time'])
@@ -134,8 +134,7 @@ def classify_by_boat(telemetry_status,start_time,end_time,dictionary,climpath,em
             if emolt_df['vessel_n'][i].split('_')[1] == str(telemetrystatus_df['Vessel#'][j]):
                        vessel_name=telemetrystatus_df['Boat'][j]
                        if str(emolt_df['time'][i]) in dictionary[vessel_name]['lat'].keys():
-                           emolt_df = emolt_df.drop(i)
-    emolt_df.index = range(len(emolt_df))
+                            emolt_df = emolt_df.drop(i)
 
     #clean the index of valuable telementry data
     if len(emolt_df)>0:
@@ -282,7 +281,7 @@ telemetry_status=os.path.join(parameterpath,'telemetry_status.csv')   #get the f
 climpath='E:\\programe\\aqmain\\py\\clim\\'
 resultpath=realpath[::-1].replace('py'[::-1],'dictionary'[::-1],1)[::-1]  #get the path of result 
 dictionarypath=os.path.join(resultpath,'dictionary.json') #filepath and filename of old dictionary 
-emolt_no_telemetry_path='E:\\Mingchao\\resultemolt_no_telemetry.csv'
+emolt_no_telemetry_path='E:\\Mingchao\\result\\emolt_no_telemetry.csv'
 #update_dictionary(telemetry_status,start_time,end_time,dictionarypath,climpath)   #that is a function use to update the dictionary
 update_dictionary(telemetry_status,start_time,end_time,dictionarypath,climpath,emolt_no_telemetry_path)
 #if __name__=='__main__':
